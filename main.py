@@ -1,90 +1,97 @@
-import tkinter as tk
-from PIL import Image, ImageTk
-from cryptography.fernet import Fernet
+from tkinter import *
+from tkinter import messagebox
 import base64
 
-window = tk.Tk()
-window.title("Image in Tkinter")
-window.minsize(200, 400)
-window.configure(bg='grey')
-resim_yolu = Image.open('resim.png').resize((100, 75), None)
-resim_yolu_tk = ImageTk.PhotoImage(resim_yolu)
-image_label = tk.Label(window, image=resim_yolu_tk)
-image_label.grid(row=0, column=1)
+#apply cryptography with vigenere ciphher
+#https://stackoverflow.com/a/38223403
 
-# LABEL_ENTER_TITLE
-label_title = tk.Label(text="Enter Your Title", font=("Arial"))
-label_title.config(fg="black", bg="grey")
-label_title.grid(row=1, column=1)
-# ENTRY_TITLE
-entry_title = tk.Entry(width=20)
-entry_title.grid(row=2, column=1)
+def encode(key, clear):
+    enc = []
+    for i in range(len(clear)):
+        key_c = key[i % len(key)]
+        enc_c = chr((ord(clear[i]) + ord(key_c)) % 256)
+        enc.append(enc_c)
+    return base64.urlsafe_b64encode("".join(enc).encode()).decode()
 
-# LABEL_ENTER_MESAGE_TITLE
-label_secret = tk.Label(text="Enter Your Secret", font=("Arial"))
-label_secret.config(fg="black", bg="grey")
-label_secret.grid(row=3, column=1)
-# TEXT_MESSAGE
-text_secret = tk.Text(window, height=10, width=200)
-text_secret.grid(row=4, column=1)
+def decode(key, enc):
+    dec = []
+    enc = base64.urlsafe_b64decode(enc).decode()
+    for i in range(len(enc)):
+        key_c = key[i % len(key)]
+        dec_c = chr((256 + ord(enc[i]) - ord(key_c)) % 256)
+        dec.append(dec_c)
+    return "".join(dec)
 
-# LABEL_ENTER_MASTER
-label_master = tk.Label(text="Enter Master Key", font=("Arial"))
-label_master.config(fg="black", bg="grey")
-label_master.grid(row=5, column=1)
-# ENTRY_MASTER
-entry_master = tk.Entry(width=40)
-entry_master.grid(row=6, column=1)
+#save notes
+def save_and_encrypt_notes():
+    title = title_entry.get()
+    message = input_text.get("1.0",END)
+    master_secret = master_secret_input.get()
 
-custom_key = None  # Anahtar başlangıçta tanımlanmamış
+    if len(title) == 0 or len(message) == 0 or len(master_secret) == 0:
+            messagebox.showinfo(title="Error!", message="Please enter all information.")
+    else:
+        message_encrypted = encode(master_secret, message)
 
-def set_custom_key():
-    global custom_key
-    user_key = entry_master.get().encode()
+        try:
+            with open("mysecret.txt", "a") as data_file:
+                data_file.write(f'\n{title}\n{message_encrypted}')
+        except FileNotFoundError:
+            with open("mysecret.txt", "w") as data_file:
+                data_file.write(f'\n{title}\n{message_encrypted}')
+        finally:
+            title_entry.delete(0, END)
+            master_secret_input.delete(0, END)
+            input_text.delete("1.0",END)
 
-    # Anahtar uzunluğunu kontrol et
-    if len(user_key) != 32:
-        print("Anahtar 32 byte olmalıdır.")
-        return
+#decrypt notes
 
-    custom_key = user_key
+def decrypt_notes():
+    message_encrypted = input_text.get("1.0", END)
+    master_secret = master_secret_input.get()
 
-def sifreleme_islemi():
-    '''
-    if custom_key is None:
-        print("Anahtar belirtilmedi. Lütfen anahtarınızı girin.")
-        return
+    if len(message_encrypted) == 0 or len(master_secret) == 0:
+        messagebox.showinfo(title="Error!", message="Please enter all information.")
+    else:
+        try:
+            decrypted_message = decode(master_secret,message_encrypted)
+            input_text.delete("1.0", END)
+            input_text.insert("1.0", decrypted_message)
+        except:
+            messagebox.showinfo(title="Error!", message="Please make sure of encrypted info.")
 
-    message_text = text_secret.get('1.0', tk.END).encode()
-    f = Fernet(custom_key)
-    encrypted_message = f.encrypt(message_text)
-    print(encrypted_message)
-    with open("key.txt", mode="a") as belge:
-        belge.write(f"\n{entry_title.get()}\n {encrypted_message}")
-    '''
+#UI
 
-def sifrecozme_islemi():
-    if custom_key is None:
-        print("Anahtar belirtilmedi. Lütfen anahtarınızı girin.")
-        return
+window = Tk()
+window.title("Secret Notes")
+window.config(padx=30, pady=30)
 
-    encrypted_message = text_secret.get('1.0', tk.END).encode()
-    f = Fernet(custom_key)
-    decrypted_message = f.decrypt(encrypted_message)
+canvas = Canvas(height=200, width=200)
+logo = PhotoImage(file="resim.png")
+canvas.create_image(100,100,image=logo)
+canvas.pack()
 
-    print("<-----> Şifresi Çözülmüş Mesaj <----->")
-    print(decrypted_message.decode())  # Şifresi çözülen metni yazdırın
+title_info_label = Label(text="Enter your title",font=("Verdena",20,"normal"))
+title_info_label.pack()
 
-# Anahtarı belirleme butonu
-btnSetKey = tk.Button(window, text="Anahtar Belirle", command=set_custom_key)
-btnSetKey.grid(row=7, column=1)
+title_entry = Entry(width=30)
+title_entry.pack()
 
-# SAVE & ENCRYPT BUTTON
-btnKaydetSifrele = tk.Button(window, text="Kaydet ve Şifrele", command=sifreleme_islemi)
-btnKaydetSifrele.grid(row=8, column=1)
+input_info_label = Label(text="Enter your secret",font=("Verdena",20,"normal"))
+input_info_label.pack()
 
-# DECRYPT BUTTON
-btnSifreCoz = tk.Button(window, text="Şifreyi Çöz", command=sifrecozme_islemi)
-btnSifreCoz.grid(row=9, column=1)
+input_text = Text(width=50, height=25)
+input_text.pack()
 
+master_secret_label = Label(text="Enter master key",font=("Verdena",20,"normal"))
+master_secret_label.pack()
+
+master_secret_input = Entry(width=30)
+master_secret_input.pack()
+
+save_button = Button(text="Save & Encrypt", command=save_and_encrypt_notes)
+save_button.pack()
+
+decrypt_button = Button(text="Decrypt",command=decrypt_notes)
+decrypt_button.pack()
 window.mainloop()
